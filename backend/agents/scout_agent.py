@@ -1,7 +1,7 @@
 """
 Tier 2 heavy-batch Scout agent.
 
-Model: gemini-2.5-flash  (thinking_budget=4096 → MEDIUM reasoning)
+Model: gemini-3.8-flash  (thinking_level="MEDIUM" → thinking_budget=8192; never use "MINIMAL" — unsupported on 3.8-flash)
 Role:  Receive the 48-site NumPy scan matrix, reason over trade-offs,
        return top-3 ranked landing zones with structured output.
 """
@@ -58,7 +58,7 @@ Return ONLY valid JSON matching the schema. The rationale must be scientifically
 Never recommend a PSR site as rank 1 or 2."""
 
 
-_MODEL_BATCH = "gemini-2.5-flash"
+_MODEL_BATCH = "gemini-3.8-flash"
 
 
 async def run_scout_scan(client: genai.Client) -> ScoutReport:
@@ -77,7 +77,7 @@ async def run_scout_scan(client: genai.Client) -> ScoutReport:
             system_instruction=_SCOUT_SYSTEM,
             response_mime_type="application/json",
             response_schema=ScoutReport,
-            thinking_config=types.ThinkingConfig(thinking_budget=4096),
+            thinking_config=types.ThinkingConfig(thinking_budget=8192),  # MEDIUM on 3.8-flash
             temperature=0.3,
             max_output_tokens=2048,
         ),

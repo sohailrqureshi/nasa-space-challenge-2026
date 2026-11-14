@@ -11,14 +11,12 @@
  *  - Export flyTo / flyTour / radarSweep imperative handle via ref (consumed by HUD)
  */
 
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef } from "react";
 import * as Cesium from "cesium";
-import "cesium/Build/Cesium/Widgets/widgets.css";
+// vite-plugin-cesium injects widgets.css automatically; manual import omitted
 import { useMissionStore } from "../store/missionStore";
-import type { LandingSite, SightlineStatus } from "../types";
 
 const ION_TOKEN = import.meta.env.VITE_CESIUM_ION_TOKEN as string | undefined;
-const SHACKLETON_SOUTH_POLE = Cesium.Cartesian3.fromDegrees(0, -89.9, 20000);
 
 // Beam length from site toward Sun/Earth: 500 km
 const BEAM_LENGTH_M = 500_000;
@@ -67,10 +65,12 @@ export default function CesiumViewer() {
   const viewerRef    = useRef<Cesium.Viewer | null>(null);
   const beamEntities = useRef<{ sun?: Cesium.Entity; earth?: Cesium.Entity }>({});
   const siteEntities = useRef<Map<string, Cesium.Entity>>(new Map());
-  const radarEntity  = useRef<Cesium.Entity | null>(null);
+  const radarEntity    = useRef<Cesium.Entity | null>(null);
+  const radarRafRef    = useRef<number | null>(null);
+  const radarAngleRef  = useRef<number>(0);
 
   const {
-    sites, selectedSite, missionTime, setTerrainFallback, setSightlines,
+    sites, selectedSite, missionTime, isScanning, setTerrainFallback, setSightlines,
   } = useMissionStore();
 
   // ── Viewer initialisation ──────────────────────────────────────────────────
@@ -95,7 +95,6 @@ export default function CesiumViewer() {
       selectionIndicator:     false,
       creditContainer:        document.createElement("div"), // suppress credit overlay
       contextOptions: {
-        requestWebgl2: true,
         webgl: { antialias: true, powerPreference: "high-performance" },
       },
     });
@@ -106,7 +105,8 @@ export default function CesiumViewer() {
     viewer.scene.shadowMap.size = 4096;
     viewer.scene.shadowMap.softShadows = true;
     viewer.scene.shadowMap.maximumDistance = 15000;
-    viewer.scene.shadowMap.cascadesEnabled = true;
+    // cascadesEnabled is a runtime-only property not in type stubs; cast safely
+    (viewer.scene.shadowMap as unknown as Record<string, unknown>).cascadesEnabled = true;
 
     // Polar directional sunlight
     viewer.scene.light = new Cesium.DirectionalLight({
@@ -337,6 +337,93 @@ export default function CesiumViewer() {
       viewer.scene.light.direction = dir;
     }
   }, [missionTime]);
+
+  // ── 3D Radar Sweep — animated while gemini-3.8-flash scans 48 candidate sites ──
+  useEffect(() => {
+    const viewer = viewerRef.current;
+    if (!viewer) return;
+
+    if (!isScanning) {
+      // Clean up sweep when scan completes
+      if (radarRafRef.current) cancelAnimationFrame(radarRafRef.current);
+      if (radarEntity.current) {
+        viewer.entities.remove(radarEntity.current);
+        radarEntity.current = null;
+      }
+      return;
+    }
+
+    // Fly to South Pole overview for the sweep theatre
+    viewer.camera.flyTo({
+      destination: Cesium.Cartesian3.fromDegrees(0, -87, 250000),
+      orientation: { heading: 0, pitch: Cesium.Math.toRadians(-55), roll: 0 },
+      duration: 1.5,
+    });
+
+    // Build a sweep polyline fan: 60 spokes radiating from the south pole,
+    // rotating in real-time via requestAnimationFrame
+    const SPOKES   = 60;
+    const RANGE_M  = 120_000; // 120 km sweep radius
+    const origin   = Cesium.Cartesian3.fromDegrees(0, -89.9, 1000);
+
+    function buildSweepPositions(angleDeg: number): Cesium.Cartesian3[] {
+      const positions: Cesium.Cartesian3[] = [origin];
+      for (let i = 0; i < SPOKES; i++) {
+        const frac = i / SPOKES;
+        const az   = Cesium.Math.toRadians(angleDeg - frac * 90); // trailing fan
+        const lat  = -89.9 + (RANGE_M * Math.cos(az)) / 1_111_320;
+        const lon  =        (RANGE_M * Math.sin(az)) /
+          (1_111_320 * Math.cos(Cesium.Math.toRadians(-89.9)));
+        positions.push(Cesium.Cartesian3.fromDegrees(lon % 360, lat, 1000));
+      }
+      positions.push(origin);
+      return positions;
+    }
+
+    // Create the entity once; update positions each frame
+    const sweepEntity = viewer.entities.add({
+      polyline: {
+        positions: new Cesium.CallbackProperty(() => {
+          return buildSweepPositions(radarAngleRef.current);
+        }, false),
+        width: 1.5,
+        material: new Cesium.PolylineGlowMaterialProperty({
+          glowPower: 0.4,
+          color: Cesium.Color.fromCssColorString("#3b82f6").withAlpha(0.6),
+        }),
+        arcType: Cesium.ArcType.NONE,
+        clampToGround: false,
+      },
+    });
+    radarEntity.current = sweepEntity;
+
+    // Also add a full-circle ring outline
+    const ringEntity = viewer.entities.add({
+      position: origin,
+      ellipse: {
+        semiMajorAxis: RANGE_M,
+        semiMinorAxis: RANGE_M,
+        height: 1000,
+        outline: true,
+        outlineColor: Cesium.Color.fromCssColorString("#3b82f6").withAlpha(0.3),
+        outlineWidth: 1,
+        fill: false,
+      },
+    });
+
+    const spin = () => {
+      radarAngleRef.current = (radarAngleRef.current + 1.2) % 360;
+      radarRafRef.current = requestAnimationFrame(spin);
+    };
+    radarRafRef.current = requestAnimationFrame(spin);
+
+    return () => {
+      if (radarRafRef.current) cancelAnimationFrame(radarRafRef.current);
+      viewer.entities.remove(sweepEntity);
+      viewer.entities.remove(ringEntity);
+      radarEntity.current = null;
+    };
+  }, [isScanning]);
 
   return (
     <div

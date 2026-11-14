@@ -1,7 +1,7 @@
 """
 Tier 1 real-time command agent.
 
-Model: gemini-2.5-flash-lite  (thinking_budget=0 → lowest latency)
+Model: gemini-3.5-flash-lite  (thinking_budget=0 → lowest latency, built for agentic routing)
 Role:  Parse natural-language user queries into structured viewer commands
        + a concise spoken response. Target TTFT < 500 ms.
 """
@@ -74,7 +74,7 @@ def build_client() -> genai.Client:
     )
 
 
-_MODEL_FAST = "gemini-2.5-flash-lite"
+_MODEL_FAST = "gemini-3.5-flash-lite"
 
 
 async def parse_command(user_input: str, client: genai.Client) -> ViewerCommand:

@@ -1,7 +1,7 @@
 """
 Mission Control Council — three concurrent streaming agents.
 
-Model: gemini-2.5-flash-lite  (thinking_budget=512)
+Model: gemini-3.7-flash  (thinking_budget=512 — latency-sensitive streaming, explicit Google support)
 Agents fire in parallel via asyncio.gather; each streams into its own
 SSE event namespace so the frontend fills three cards simultaneously.
 
@@ -51,7 +51,7 @@ Use ONLY the physics metrics provided. No markdown headers. Be concise. Be corre
 
 # ── Streaming helpers ─────────────────────────────────────────────────────────
 
-_MODEL_FAST = "gemini-2.5-flash-lite"
+_MODEL_FAST = "gemini-3.7-flash"
 
 
 def _build_site_context(metrics: SiteMetrics) -> str:
