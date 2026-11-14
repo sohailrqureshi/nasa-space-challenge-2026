@@ -53,7 +53,7 @@ MISSION_STEP_HOURS = 1
 # ── Synthetic LOLA-calibrated South Pole DEM ─────────────────────────────────
 
 _DEM_CACHE: np.ndarray | None = None
-_DEM_SIZE = 300
+_DEM_SIZE = 200  # 200×200 gives sub-km resolution within the 85–90°S zone; faster than 300×300
 # DEM covers 85–90°S in a polar stereographic projection.
 # Grid extents: ±max_radius_km from south pole in both x and y (km)
 _DEM_MAX_RADIUS_KM = (5.0 * math.pi / 180.0) * MOON_RADIUS_KM   # ≈151.9 km
@@ -74,8 +74,10 @@ def _build_lola_dem() -> np.ndarray:
     rng = np.random.default_rng(42)
     terrain = np.zeros((n, n), dtype=np.float32)
 
-    # Multi-scale fractal background terrain (wavelength/amplitude pairs in km/m)
-    for wavelength_km, amp_m in [(60, 400), (25, 180), (12, 90), (6, 45), (3, 22)]:
+    # Multi-scale fractal background terrain (wavelength/amplitude pairs in km/m).
+    # Amplitudes calibrated so typical open-terrain horizon is ~3–8°, not 20°+.
+    # Real LOLA RMS roughness at 100m baseline ≈ 15–40m; at 1km baseline ≈ 60–120m.
+    for wavelength_km, amp_m in [(60, 120), (25, 60), (12, 30), (6, 15), (3, 8)]:
         kx = 2 * math.pi / wavelength_km
         px, py = rng.uniform(0, 2 * math.pi, 2)
         terrain += amp_m * (np.sin(kx * X + px) * np.cos(kx * Y + py)).astype(np.float32)
@@ -201,20 +203,34 @@ def compute_horizon_profile(
     azimuths  = np.linspace(0, 360, n_azimuths, endpoint=False)
     horizons  = np.zeros(n_azimuths)
 
+    # Local geographic frame in PS coordinates.
+    # For a site not at the exact pole, geographic North = radially outward from pole.
+    # Using raw PS axes (dx=sin(az), dy=cos(az)) is only correct at 0°/180° longitude;
+    # at other longitudes it rotates the horizon profile by the site's longitude angle,
+    # misaligning Earth/Sun azimuths with actual terrain directions.
+    r_site = math.sqrt(ox**2 + oy**2)
+    if r_site > 1e-6:
+        north_x, north_y = ox / r_site, oy / r_site   # unit vector toward equator
+        east_x,  east_y  = -oy / r_site, ox / r_site  # unit vector 90° CCW (East)
+    else:
+        # Exactly at the pole: North = +x (arbitrary), East = +y
+        north_x, north_y = 1.0, 0.0
+        east_x,  east_y  = 0.0, 1.0
+
     steps = np.arange(step_km, max_range_km, step_km)
 
     for i, az_deg in enumerate(azimuths):
         az_rad = math.radians(az_deg)
-        dx = math.sin(az_rad)   # unit vector in PS x
-        dy = math.cos(az_rad)   # unit vector in PS y
+        sa, ca = math.sin(az_rad), math.cos(az_rad)
+        # Convert geographic azimuth → PS direction vector
+        dx = sa * east_x + ca * north_x
+        dy = sa * east_y + ca * north_y
         max_angle = -90.0
 
         for dist in steps:
             px = ox + dx * dist
             py = oy + dy * dist
-            # Terrain elevation at this point
             t_elev = sample_dem(px, py)
-            # Height above site + lunar curvature correction
             curve_m = (dist**2 / (2 * MOON_RADIUS_KM)) * 1000.0
             angle_deg = math.degrees(
                 math.atan2(t_elev - site_elev - curve_m, dist * 1000.0)
@@ -506,11 +522,18 @@ def scan_candidate_grid(num_points: int = 48) -> List[dict]:
         elev   = sample_dem(ox, oy)
         slope  = _slope_from_dem(ox, oy)
 
-        # Fast horizon estimation: sample 8 cardinal+intercardinal directions only
+        # Fast horizon estimation: 8 directions in proper geographic frame
+        r_s = math.sqrt(ox**2 + oy**2)
+        if r_s > 1e-6:
+            nx, ny = ox / r_s, oy / r_s
+            ex, ey = -ny, nx
+        else:
+            nx, ny, ex, ey = 1.0, 0.0, 0.0, 1.0
         h_vals = []
         for az_deg in range(0, 360, 45):
             az_r = math.radians(az_deg)
-            dx, dy = math.sin(az_r), math.cos(az_r)
+            dx = math.sin(az_r) * ex + math.cos(az_r) * nx
+            dy = math.sin(az_r) * ey + math.cos(az_r) * ny
             max_a = -90.0
             for dist in np.arange(0.5, 30.0, 0.5):
                 te = sample_dem(ox + dx * dist, oy + dy * dist)

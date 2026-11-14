@@ -68,7 +68,7 @@ async def run_scout_scan(client: genai.Client) -> ScoutReport:
     """
     from datetime import datetime, timezone
     candidates = scan_candidate_grid(48)
-    candidates_json = json.dumps(candidates, indent=2)
+    candidates_json = json.dumps(candidates, separators=(",", ":"))  # compact — saves ~40% tokens
 
     response = await client.aio.models.generate_content(
         model=_MODEL_BATCH,
@@ -79,9 +79,16 @@ async def run_scout_scan(client: genai.Client) -> ScoutReport:
             response_schema=ScoutReport,
             thinking_config=types.ThinkingConfig(thinking_budget=8192),  # MEDIUM on 3.8-flash
             temperature=0.3,
-            max_output_tokens=2048,
+            max_output_tokens=8192,  # structured JSON for 3 sites needs headroom
         ),
     )
+
+    # Prefer response.parsed (SDK-deserialised Pydantic model) if available
+    if hasattr(response, "parsed") and response.parsed is not None:
+        result = response.parsed
+        if not result.scan_timestamp_utc:
+            result.scan_timestamp_utc = datetime.now(timezone.utc).isoformat()
+        return result
 
     raw = response.text or "{}"
     try:

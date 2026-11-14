@@ -10,6 +10,8 @@ site-select request is instantaneous.
 """
 
 from __future__ import annotations
+from dotenv import load_dotenv
+load_dotenv()  # loads .env before any os.environ reads below
 import asyncio
 import os
 import logging

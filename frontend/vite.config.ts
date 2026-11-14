@@ -1,7 +1,6 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import cesium from "vite-plugin-cesium";
-import path from "path";
 
 // vite-plugin-cesium handles:
 //   - Copying CesiumJS static Workers, Assets, ThirdParty to dist/
@@ -10,16 +9,17 @@ import path from "path";
 export default defineConfig({
   plugins: [react(), cesium()],
   resolve: {
-    alias: { "@": path.resolve(__dirname, "./src") },
+    alias: { "@": new URL("./src", import.meta.url).pathname },
   },
   build: {
     chunkSizeWarningLimit: 20000,
     rollupOptions: {
       output: {
-        manualChunks: {
-          "cesium-core": ["cesium"],
-          "react-core": ["react", "react-dom"],
-          "zustand": ["zustand"],
+        // Vite 6+ requires manualChunks as a function, not an object
+        manualChunks: (id) => {
+          if (id.includes("node_modules/cesium")) return "cesium-core";
+          if (id.includes("node_modules/react-dom") || id.includes("node_modules/react/")) return "react-core";
+          if (id.includes("node_modules/zustand")) return "zustand";
         },
       },
     },
@@ -34,7 +34,6 @@ export default defineConfig({
     },
   },
   define: {
-    // Cesium uses these global checks internally
     CESIUM_BASE_URL: JSON.stringify("/cesium"),
   },
 });

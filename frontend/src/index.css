@@ -1,6 +1,25 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+
+/* ── Tailwind v4 custom theme ───────────────────────────────────────────── */
+@theme {
+  --color-lunar-dark:    #0a0c14;
+  --color-lunar-panel:   #111827;
+  --color-lunar-border:  #1f2d4a;
+  --color-lunar-accent:  #3b82f6;
+  --color-solar-gold:    #f59e0b;
+  --color-earth-cyan:    #06b6d4;
+  --color-alert-red:     #ef4444;
+  --color-go-green:      #22c55e;
+  --color-caution-amber: #f59e0b;
+
+  --font-family-mono: 'JetBrains Mono', 'Fira Code', monospace;
+  --font-family-sans: 'Inter', system-ui, sans-serif;
+
+  --animate-pulse-slow:  pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  --animate-fade-in:     fadeIn 0.4s ease-out;
+  --animate-slide-up:    slideUp 0.3s ease-out;
+  --animate-radar-sweep: radar-sweep 2s linear infinite;
+}
 
 /* Global resets */
 *, *::before, *::after { box-sizing: border-box; }
@@ -27,18 +46,28 @@ body { background: #0a0c14; color: #e2e8f0; font-family: 'Inter', system-ui, san
 @keyframes blink { 50% { opacity: 0; } }
 
 /* Verdict badges */
-.verdict-go     { @apply bg-go-green/20 text-go-green border border-go-green/40; }
-.verdict-caution { @apply bg-caution-amber/20 text-caution-amber border border-caution-amber/40; }
-.verdict-nogo   { @apply bg-alert-red/20 text-alert-red border border-alert-red/40; }
+.verdict-go      { background: rgba(34,197,94,0.2);  color: #22c55e; border: 1px solid rgba(34,197,94,0.4); }
+.verdict-caution { background: rgba(245,158,11,0.2); color: #f59e0b; border: 1px solid rgba(245,158,11,0.4); }
+.verdict-nogo    { background: rgba(239,68,68,0.2);  color: #ef4444; border: 1px solid rgba(239,68,68,0.4); }
 
 /* Scrollbar — minimal dark style */
 ::-webkit-scrollbar { width: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: #1f2d4a; border-radius: 2px; }
 
-/* Radar sweep animation */
+/* Keyframe animations */
 @keyframes radar-sweep {
   from { transform: rotate(0deg); }
   to   { transform: rotate(360deg); }
 }
-.radar-sweep { animation: radar-sweep 2s linear infinite; transform-origin: center; }
+@keyframes fadeIn {
+  0%   { opacity: 0; }
+  100% { opacity: 1; }
+}
+@keyframes slideUp {
+  0%   { opacity: 0; transform: translateY(8px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-in  { animation: fadeIn 0.4s ease-out; }
+.animate-slide-up { animation: slideUp 0.3s ease-out; }
+.radar-sweep      { animation: radar-sweep 2s linear infinite; transform-origin: center; }
