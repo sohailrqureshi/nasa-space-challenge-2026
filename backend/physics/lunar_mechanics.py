@@ -7,9 +7,11 @@ No LLM touches this layer. Numbers that reach the UI originate here.
 Data sources:
   - Elevation grid: synthetic DEM calibrated to NASA LRO LOLA South Pole
     topography (PDS archive: https://pds-geosciences.wustl.edu/lro/lro-l-lola-3-rdr-v1/)
-  - Ephemeris: simplified USNO solar coordinates + JPL Horizons-calibrated
-    libration parameters for Nov–Dec 2026
-    (https://ssd.jpl.nasa.gov/horizons/)
+  - Ephemeris (primary): actual JPL Horizons API data pre-fetched at startup
+    for each Artemis candidate site — real Sun/Earth alt/az in the local
+    topographic frame (https://ssd.jpl.nasa.gov/horizons/)
+  - Ephemeris (fallback): simplified USNO solar coordinates + two-term
+    libration model when JPL is unavailable
 """
 
 from __future__ import annotations
@@ -34,12 +36,14 @@ MAX_LIBRATION_LAT_DEG = 6.70
 LIBRATION_LON_PHASE_J2000 = 134.9      # degrees
 LIBRATION_LAT_PHASE_J2000 = 93.3       # degrees
 
-SOLAR_PANEL_CLEARANCE_DEG = 2.0        # minimum sun elevation above horizon
-DTE_ANTENNA_CLEARANCE_DEG = 5.0        # minimum Earth elevation for usable DTE link
+SOLAR_PANEL_CLEARANCE_DEG = 0.5        # minimum sun elevation above terrain horizon
+                                       # (0° for NASA illumination maps; 0.5° ≈ edge-on panels)
+DTE_ANTENNA_CLEARANCE_DEG = 3.0        # minimum Earth elevation for usable DTE link
 
 # Artemis candidate landing sites — coordinates from NASA ESMD site selection reports
 CANDIDATE_SITES = [
-    {"id": "shackleton_rim",    "name": "Shackleton Crater Rim",     "lat": -89.68, "lon": 129.20, "elev_m": 1200},
+    # lat=-89.65 ≈ PS radius 10.5 km — sits at the DEM rim peak, not inside the bowl
+    {"id": "shackleton_rim",    "name": "Shackleton Crater Rim",     "lat": -89.65, "lon": 129.20, "elev_m": 1200},
     {"id": "connecting_ridge",  "name": "Connecting Ridge",           "lat": -89.45, "lon": 222.50, "elev_m": 800},
     {"id": "de_gerlache_rim",   "name": "de Gerlache Rim",           "lat": -88.71, "lon": 291.70, "elev_m": 600},
     {"id": "malapert_massif",   "name": "Malapert Massif",           "lat": -86.00, "lon":   2.50, "elev_m": 5500},
@@ -99,7 +103,9 @@ def _build_lola_dem() -> np.ndarray:
         return r * math.cos(lon_r), r * math.sin(lon_r)
 
     # Shackleton: 21 km diam, 4.2 km deep — at south pole (0, 0)
-    terrain += _crater(0, 0, 10.5, 4200, 1800)
+    # rim_h=400m: real rim rises ~200-400m above surroundings (not 1800m — that created
+    # a physically impossible wall that blocked all sunlight from rim candidate sites)
+    terrain += _crater(0, 0, 10.5, 4200, 400)
 
     # de Gerlache: ~32 km diam, 3.2 km deep
     gx, gy = _ps(-88.5, 272.0)
@@ -396,8 +402,19 @@ def _slope_from_dem(x_km: float, y_km: float) -> float:
 def score_site(lat: float, lon: float, site_id: str = "", name: str = "") -> SiteMetrics:
     """
     Compute full physics-based landing site metrics over the mission window.
+
+    Uses JPL Horizons ephemeris data (pre-fetched at startup) when available
+    for the named Artemis candidate sites.  Falls back to the analytical USNO
+    solar model for any site not in the JPL cache.
     Deterministic NumPy — no LLM involvement.
     """
+    # Lazy import to avoid circular dependency (ephemeris imports nothing here)
+    try:
+        from backend.physics import ephemeris as _eph
+        _use_jpl = _eph.is_loaded() and bool(site_id)
+    except ImportError:
+        _use_jpl = False
+
     ox, oy    = latlon_to_ps(lat, lon)
     elev_m    = sample_dem(ox, oy)
     slope_deg = _slope_from_dem(ox, oy)
@@ -410,9 +427,21 @@ def score_site(lat: float, lon: float, site_id: str = "", name: str = "") -> Sit
     blackout_streak = 0; max_blackout = 0
 
     dt = MISSION_START
-    for _ in range(total_hours):
-        sun_alt, sun_az = sun_local_altaz(lat, lon, dt)
-        ear_alt, ear_az = earth_local_altaz(lat, lon, dt)
+    for hour in range(total_hours):
+        # Prefer JPL Horizons data; fall back to analytical model
+        if _use_jpl:
+            sun_result   = _eph.get_sun_altaz(site_id, float(hour))
+            earth_result = _eph.get_earth_altaz(site_id, float(hour))
+            if sun_result is not None and earth_result is not None:
+                sun_alt, sun_az = sun_result
+                ear_alt, ear_az = earth_result
+            else:
+                sun_alt, sun_az = sun_local_altaz(lat, lon, dt)
+                ear_alt, ear_az = earth_local_altaz(lat, lon, dt)
+        else:
+            sun_alt, sun_az = sun_local_altaz(lat, lon, dt)
+            ear_alt, ear_az = earth_local_altaz(lat, lon, dt)
+
         h_sun   = horizon_at_azimuth(horizon, sun_az)
         h_earth = horizon_at_azimuth(horizon, ear_az)
 

@@ -29,6 +29,7 @@ from backend.physics.lunar_mechanics import (
     SiteMetrics, score_site, score_all_candidate_sites,
     CANDIDATE_SITES, scan_candidate_grid,
 )
+from backend.physics import ephemeris as jpl_eph
 from backend.agents.command_agent import build_client, parse_command, ViewerCommand
 from backend.agents.council_agents import stream_council
 from backend.agents.scout_agent import run_scout_scan
@@ -45,12 +46,23 @@ _genai_client = None
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global _genai_client, _site_cache
+
+    # 1. Fetch real JPL Horizons ephemeris for all 5 candidate sites.
+    #    All 10 HTTP requests run concurrently; typical wall-clock: 3–6 s.
+    log.info("Loading JPL Horizons ephemeris (Sun + Earth for 5 sites)…")
+    jpl_ok = await jpl_eph.load_jpl_ephemeris()
+    if jpl_ok:
+        log.info("JPL Horizons loaded: %s", jpl_eph.cache_summary())
+    else:
+        log.warning("JPL Horizons unavailable — falling back to analytical ephemeris")
+
+    # 2. Score candidate sites (uses JPL data if loaded, analytical otherwise)
     log.info("Pre-scoring Artemis candidate sites…")
-    # Run physics scoring in a thread pool so we don't block the event loop
     loop = asyncio.get_event_loop()
     metrics_list = await loop.run_in_executor(None, score_all_candidate_sites)
     _site_cache = {m.site_id: m for m in metrics_list}
-    log.info(f"Scored {len(_site_cache)} sites: {list(_site_cache.keys())}")
+    log.info("Scored %d sites: %s", len(_site_cache), list(_site_cache.keys()))
+
     _genai_client = build_client()
     log.info("Gemini client initialised")
     yield
@@ -75,7 +87,12 @@ app.add_middleware(
 
 @app.get("/api/health")
 async def health():
-    return {"status": "ok", "sites_cached": len(_site_cache)}
+    return {
+        "status": "ok",
+        "sites_cached": len(_site_cache),
+        "jpl_ephemeris": jpl_eph.is_loaded(),
+        "jpl_sites": jpl_eph.cache_summary(),
+    }
 
 
 # ── Static candidate site list ────────────────────────────────────────────────
