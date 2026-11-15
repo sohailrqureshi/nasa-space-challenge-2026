@@ -94,8 +94,16 @@ async function applyCommand(
     }
 
     case "play_flythrough_tour": {
-      store.setPlaybackSpeed(100);
-      if (!store.isPlaying) store.togglePlayback();
+      const sites = store.sites;
+      if (sites.length === 0) break;
+      // Sort by survival_score descending so the tour visits best-to-worst
+      const ordered = [...sites].sort((a, b) => b.survival_score - a.survival_score);
+      // Fly to each site in sequence: 4 s per stop (matches CesiumViewer flyTo duration 2.5 s + dwell)
+      ordered.forEach((site, i) => {
+        setTimeout(() => {
+          useMissionStore.getState().selectSite(site);
+        }, i * 4000);
+      });
       break;
     }
 

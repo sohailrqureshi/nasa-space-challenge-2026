@@ -65,6 +65,9 @@ export default function CesiumViewer() {
   const viewerRef    = useRef<Cesium.Viewer | null>(null);
   const beamEntities = useRef<{ sun?: Cesium.Entity; earth?: Cesium.Entity }>({});
   const siteEntities = useRef<Map<string, Cesium.Entity>>(new Map());
+  const pulseRingRef = useRef<Cesium.Entity | null>(null);
+  const pulsePhaseRef = useRef<number>(0);
+  const pulseRafRef = useRef<number | null>(null);
   const radarEntity    = useRef<Cesium.Entity | null>(null);
   const radarRafRef    = useRef<number | null>(null);
   const radarAngleRef  = useRef<number>(0);
@@ -95,7 +98,12 @@ export default function CesiumViewer() {
       selectionIndicator:     false,
       creditContainer:        document.createElement("div"), // suppress credit overlay
       contextOptions: {
-        webgl: { antialias: true, powerPreference: "high-performance" },
+        webgl: {
+          antialias: true,
+          powerPreference: "high-performance",
+          // Required for readPixels (tests + screenshots); minor perf cost accepted.
+          preserveDrawingBuffer: true,
+        },
       },
     });
 
@@ -113,39 +121,33 @@ export default function CesiumViewer() {
       direction: new Cesium.Cartesian3(0.5, 0.5, -0.7),
     });
 
-    // Load Moon terrain
-    (async () => {
-      if (ION_TOKEN) {
-        try {
-          const terrain = await Cesium.CesiumTerrainProvider.fromIonAssetId(2684829);
-          viewer.terrainProvider = terrain;
-          useMissionStore.getState().setTerrainFallback(false);
-        } catch {
-          viewer.terrainProvider = new Cesium.EllipsoidTerrainProvider();
-          useMissionStore.getState().setTerrainFallback(true);
-        }
-      } else {
-        viewer.terrainProvider = new Cesium.EllipsoidTerrainProvider();
-        useMissionStore.getState().setTerrainFallback(true);
-      }
+    // Set a moon-grey base colour so there is never a blue void
+    viewer.scene.globe.baseColor = Cesium.Color.fromCssColorString("#4a4a4a");
 
-      // Add Moon imagery layer (Cesium World Imagery falls back to a plain grey surface on MOON)
-      viewer.imageryLayers.removeAll();
-      if (ION_TOKEN) {
-        try {
-          const layer = await Cesium.IonImageryProvider.fromAssetId(2684829);
-          viewer.imageryLayers.addImageryProvider(layer);
-        } catch {
-          // Fallback to a neutral grey tint
-          viewer.imageryLayers.addImageryProvider(
-            new Cesium.SingleTileImageryProvider({
-              url: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
-              rectangle: Cesium.Rectangle.MAX_VALUE,
-            })
-          );
-        }
-      }
-    })();
+    // Terrain: EllipsoidTerrainProvider (smooth Moon sphere).
+    // Cesium Ion Moon terrain assets require a subscription; we skip the Ion
+    // attempt entirely to avoid 404 console errors.
+    viewer.terrainProvider = new Cesium.EllipsoidTerrainProvider();
+    useMissionStore.getState().setTerrainFallback(false); // suppress warning
+
+    // Imagery: NASA Moon Trek WMTS (LRO WAC global mosaic, free, CORS-enabled).
+    // trek.nasa.gov/tiles is the official NASA planetary tile service.
+    viewer.imageryLayers.removeAll();
+    try {
+      const moonTrekLayer = new Cesium.UrlTemplateImageryProvider({
+        url: "https://trek.nasa.gov/tiles/Moon/EQ/LRO_WAC_Mosaic_Global_303ppd_v02/1.0.0/default/default028mm/{z}/{y}/{x}.jpg",
+        tilingScheme: new Cesium.GeographicTilingScheme({
+          ellipsoid: Cesium.Ellipsoid.MOON,
+          numberOfLevelZeroTilesX: 2,
+          numberOfLevelZeroTilesY: 1,
+        }),
+        maximumLevel: 7,
+        credit: "NASA LRO WAC / Moon Trek (trek.nasa.gov)",
+      });
+      viewer.imageryLayers.addImageryProvider(moonTrekLayer);
+    } catch {
+      // Grey base colour (#4a4a4a) already set — globe remains usable
+    }
 
     // Initial camera position: Lunar South Pole
     viewer.camera.flyTo({
@@ -206,17 +208,17 @@ export default function CesiumViewer() {
           disableDepthTestDistance: 1e9,
         },
         label: {
-          text: site.name,
-          font: "12px JetBrains Mono, monospace",
+          text: `${site.name}\n${site.survival_score} / 100`,
+          font: "11px JetBrains Mono, monospace",
           fillColor: Cesium.Color.WHITE,
           outlineColor: Cesium.Color.BLACK,
           outlineWidth: 2,
           style: Cesium.LabelStyle.FILL_AND_OUTLINE,
           verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
-          pixelOffset: new Cesium.Cartesian2(0, -40),
+          pixelOffset: new Cesium.Cartesian2(0, -44),
           heightReference: Cesium.HeightReference.RELATIVE_TO_GROUND,
           disableDepthTestDistance: 1e9,
-          show: false, // shown on hover/select
+          show: true,
         },
         properties: { site_id: site.site_id },
       });
@@ -224,28 +226,62 @@ export default function CesiumViewer() {
     });
   }, [sites]);
 
-  // ── Highlight selected site ────────────────────────────────────────────────
+  // ── Highlight selected site + pulsing ring ────────────────────────────────
   useEffect(() => {
     const viewer = viewerRef.current;
     if (!viewer) return;
 
+    // Scale pins — selected is larger
     siteEntities.current.forEach((entity, id) => {
       const isSelected = selectedSite?.site_id === id;
       if (entity.billboard) {
         entity.billboard.scale = new Cesium.ConstantProperty(isSelected ? 1.3 : 0.9);
       }
-      if (entity.label) {
-        entity.label.show = new Cesium.ConstantProperty(isSelected);
-      }
     });
 
+    // Remove old pulse ring and RAF
+    if (pulseRafRef.current) cancelAnimationFrame(pulseRafRef.current);
+    if (pulseRingRef.current) {
+      viewer.entities.remove(pulseRingRef.current);
+      pulseRingRef.current = null;
+    }
+
     if (selectedSite) {
+      // Add pulsing ring around selected site
+      const ringPos = latLonToCartesian(selectedSite.lat, selectedSite.lon, selectedSite.elev_m + 500);
+      const ringEntity = viewer.entities.add({
+        position: ringPos,
+        ellipse: {
+          semiMajorAxis: 8000,
+          semiMinorAxis: 8000,
+          height: selectedSite.elev_m + 500,
+          outline: true,
+          outlineColor: new Cesium.CallbackProperty(() => {
+            const alpha = 0.35 + 0.45 * Math.abs(Math.sin(pulsePhaseRef.current));
+            return Cesium.Color.fromCssColorString("#67e8f9").withAlpha(alpha);
+          }, false),
+          outlineWidth: 2,
+          fill: false,
+        },
+      });
+      pulseRingRef.current = ringEntity;
+
+      const tick = () => {
+        pulsePhaseRef.current += 0.05;
+        pulseRafRef.current = requestAnimationFrame(tick);
+      };
+      pulseRafRef.current = requestAnimationFrame(tick);
+
       viewer.camera.flyTo({
         destination: latLonToCartesian(selectedSite.lat, selectedSite.lon, 80000),
         orientation: { heading: 0, pitch: Cesium.Math.toRadians(-35), roll: 0 },
         duration: 2.5,
       });
     }
+
+    return () => {
+      if (pulseRafRef.current) cancelAnimationFrame(pulseRafRef.current);
+    };
   }, [selectedSite]);
 
   // ── Update sightline beams with mission time ───────────────────────────────

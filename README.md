@@ -2,6 +2,9 @@
 
 **2026 NASA Space Apps Challenge Submission**
 
+**Author:** Sohail Qureshi  
+**Live URL:** https://selene-scout-kpyt6jazya-as.a.run.app
+
 An AI-powered 3D mission planning tool for evaluating Artemis landing sites at the Lunar South Pole. Physics-accurate solar illumination, terrain horizon ray-marching, and a streaming Mission Control Council that argues over your crater floor ambitions.
 
 ---
@@ -17,8 +20,8 @@ graph TB
     end
 
     subgraph "Vertex AI (global)"
-        F1["gemini-2.5-flash-lite\nthinking_budget=0\nTier 1 — Real-Time"]
-        F2["gemini-2.5-flash\nthinking_budget=4096\nTier 2 — Batch Scout"]
+        F1["gemini-3.5-flash-lite\nthinking_budget=0\nTier 1 — Real-Time"]
+        F2["gemini-3.8-flash\nthinking_budget=8192\nTier 2 — Batch Scout"]
     end
 
     USER["Browser"] -->|"HTTP/SSE"| FE
@@ -139,9 +142,9 @@ This project uses Google Vertex AI Gemini models as follows:
 
 | Model | Role | Thinking Budget | Use Case |
 |-------|------|----------------|----------|
-| `gemini-2.5-flash-lite` | Real-time command parsing | 0 (disabled) | Natural-language → structured `ViewerCommand` JSON; target TTFT <500ms |
-| `gemini-2.5-flash-lite` | Mission Council streaming | 512 tokens | Three concurrent specialist agents (Power Officer, Comms Officer, Flight Director) streaming via SSE |
-| `gemini-2.5-flash` | Batch site scouting | 4096 tokens | Analyses 48-candidate grid output from NumPy scan; returns structured top-3 `ScoutReport` |
+| `gemini-3.5-flash-lite` | Real-time command parsing | 0 (disabled) | Natural-language → structured `ViewerCommand` JSON; target TTFT <500ms |
+| `gemini-3.7-flash` | Mission Council streaming | 512 tokens | Three concurrent specialist agents (Power Officer, Comms Officer, Flight Director) streaming via SSE |
+| `gemini-3.8-flash` | Batch site scouting | 8192 tokens | Analyses 48-candidate grid output from NumPy scan; returns structured top-3 `ScoutReport` |
 
 ### What AI Does and Does NOT Do
 

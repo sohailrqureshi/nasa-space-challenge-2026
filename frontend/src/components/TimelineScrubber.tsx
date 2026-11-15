@@ -31,7 +31,7 @@ export default function TimelineScrubber() {
   const speeds: PlaybackSpeed[] = [1, 100, 1000];
 
   return (
-    <div className="absolute bottom-0 left-0 right-0 z-10 glass-panel border-t border-lunar-border">
+    <div className="absolute bottom-0 left-0 right-0 z-10 bg-[#080c14]/90 backdrop-blur-xl border-t border-slate-400/20">
       <div className="flex items-center gap-4 px-4 py-2">
         {/* Play/Pause */}
         <button
@@ -85,7 +85,7 @@ export default function TimelineScrubber() {
             }}
           />
           {/* Mission labels */}
-          <div className="flex justify-between text-xs font-mono text-slate-600 mt-0.5">
+          <div className="flex justify-between text-xs font-mono text-slate-400 mt-0.5">
             <span>15 Nov 2026</span>
             <span>15 Dec 2026</span>
           </div>

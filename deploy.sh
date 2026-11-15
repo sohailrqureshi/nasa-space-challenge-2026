@@ -8,7 +8,7 @@ set -euo pipefail
 PROJECT_ID="${1:-$(gcloud config get-value project)}"
 SERVICE_NAME="selene-scout"
 REGION="asia-southeast1"
-IMAGE="gcr.io/${PROJECT_ID}/${SERVICE_NAME}"
+IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/${SERVICE_NAME}/${SERVICE_NAME}"
 
 echo "▶ Deploying ${SERVICE_NAME} to Cloud Run (${REGION})…"
 echo "  Project: ${PROJECT_ID}"

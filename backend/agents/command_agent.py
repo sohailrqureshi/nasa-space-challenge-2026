@@ -1,5 +1,6 @@
 """
 Tier 1 real-time command agent.
+Author: Sohail Qureshi
 
 Model: gemini-3.5-flash-lite  (thinking_budget=0 → lowest latency, built for agentic routing)
 Role:  Parse natural-language user queries into structured viewer commands

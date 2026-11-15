@@ -1,5 +1,6 @@
 """
 JPL Horizons ephemeris cache for SELENE SCOUT.
+Author: Sohail Qureshi
 
 Pre-fetches 720 hours of real Sun + Earth azimuth/elevation for each of the
 5 Artemis candidate sites directly from NASA JPL Horizons

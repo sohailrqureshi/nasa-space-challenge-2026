@@ -1,5 +1,6 @@
 """
 Tier 2 heavy-batch Scout agent.
+Author: Sohail Qureshi
 
 Model: gemini-3.8-flash  (thinking_level="MEDIUM" → thinking_budget=8192; never use "MINIMAL" — unsupported on 3.8-flash)
 Role:  Receive the 48-site NumPy scan matrix, reason over trade-offs,

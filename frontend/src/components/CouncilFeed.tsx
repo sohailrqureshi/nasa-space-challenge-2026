@@ -57,7 +57,7 @@ function AgentCard({ agent, messages }: {
       </div>
 
       {/* Content */}
-      <div className="text-xs text-slate-300 leading-relaxed min-h-8 font-mono">
+      <div className="text-xs text-slate-300 leading-relaxed min-h-8 font-prose">
         {text ? (
           <span className={isActive ? "streaming" : ""}>{text}</span>
         ) : isStreaming ? (
@@ -97,6 +97,10 @@ export default function CouncilFeed() {
         {(["power_officer", "comms_officer", "flight_director"] as const).map((agent) => (
           <AgentCard key={agent} agent={agent} messages={councilMessages} />
         ))}
+
+        <p className="text-[10px] font-mono text-slate-600 leading-tight pt-1 border-t border-slate-800">
+          AI-generated analysis. Physics metrics are deterministic (NumPy). Not affiliated with or endorsed by NASA.
+        </p>
       </div>
     </div>
   );

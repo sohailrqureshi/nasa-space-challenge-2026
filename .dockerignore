@@ -1,0 +1,33 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+htmlcov/
+
+# Node
+frontend/node_modules/
+frontend/dist/
+
+# Dev / local artifacts
+.env
+.env.*
+screenshots/
+tests/
+.claude/
+.agents/
+.playwright-mcp/
+
+# Git
+.git/
+.gitignore
+
+# Docs
+*.md
+PRD.md
+guide.md
+gemini_review_prompt.md
+skills-lock.json

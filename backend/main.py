@@ -1,5 +1,6 @@
 """
 SELENE SCOUT — FastAPI application entry point.
+Author: Sohail Qureshi
 
 Serves:
   /api/*         — all JSON + SSE endpoints

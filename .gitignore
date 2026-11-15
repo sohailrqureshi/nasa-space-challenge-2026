@@ -43,6 +43,18 @@ service-account*.json
 .env.production
 secrets/
 
+# Internal review prompts — not for public repo
+gemini_review_prompt.md
+
+# Claude Code / agent tooling
+.claude/
+.agents/
+.playwright-mcp/
+skills-lock.json
+
+# Screenshots (dev artifacts)
+screenshots/
+
 # Logs
 *.log
 logs/

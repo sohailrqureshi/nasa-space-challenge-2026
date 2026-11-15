@@ -7,6 +7,9 @@ import cesium from "vite-plugin-cesium";
 //   - Setting CESIUM_BASE_URL define so Cesium can resolve its own Workers at runtime
 //   - Excluding cesium from Vite's dep optimisation (prevents Worker inlining crash)
 export default defineConfig({
+  // Look for .env in the monorepo root (parent of frontend/) so
+  // VITE_CESIUM_ION_TOKEN is picked up from the shared .env file.
+  envDir: "..",
   plugins: [react(), cesium()],
   resolve: {
     alias: { "@": new URL("./src", import.meta.url).pathname },
