@@ -4,18 +4,35 @@ import { useCommandAgent } from "../hooks/useCommandAgent";
 import { useCouncilStream } from "../hooks/useCouncilStream";
 import type { LandingSite } from "../types";
 
-// ── Scan trigger (mirrors MissionBriefingOverlay's runPreset logic) ───────────
+// ── Scan trigger ──────────────────────────────────────────────────────────────
 async function triggerScan() {
   const store = useMissionStore.getState();
   if (store.isScanning) return;
   store.setIsScanning(true);
+  store.setScanError(null);
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 90_000);
+
   try {
-    const res = await fetch("/api/scan-zones", { method: "POST" });
+    const res = await fetch("/api/scan-zones", { method: "POST", signal: controller.signal });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: `Server error ${res.status}` }));
+      throw new Error(err.detail || `Server error ${res.status}`);
+    }
     const report = await res.json();
     store.setScanReport(report);
-  } catch (e) {
+  } catch (e: unknown) {
+    const msg =
+      e instanceof Error && e.name === "AbortError"
+        ? "Scan timed out (90 s) — server may be overloaded, try again"
+        : e instanceof Error
+          ? e.message
+          : "Scan failed — check the console for details";
+    store.setScanError(msg);
     console.error("Scan failed:", e);
   } finally {
+    clearTimeout(timeoutId);
     store.setIsScanning(false);
   }
 }
@@ -182,7 +199,7 @@ function SiteSelector() {
 export default function MissionControlHUD() {
   const {
     selectedSite, terrainFallback, commandInput, commandLoading,
-    setCommandInput, isScanning, lastCommand,
+    setCommandInput, isScanning, lastCommand, scanError, scanReport,
   } = useMissionStore();
 
   const { sendCommand } = useCommandAgent();
@@ -284,6 +301,52 @@ export default function MissionControlHUD() {
               </>
             )}
           </button>
+
+          {/* Scan error */}
+          {scanError && (
+            <div className="rounded-lg px-3 py-2.5 border border-red-500/30 bg-red-500/10 text-[11px] font-mono text-red-400 leading-relaxed">
+              <span className="text-red-500 font-semibold">SCAN ERROR</span>
+              <br />
+              {scanError}
+            </div>
+          )}
+
+          {/* Scan results */}
+          {scanReport && !isScanning && (
+            <div className="space-y-2">
+              <div className="text-[10px] font-mono text-slate-500 uppercase tracking-widest">
+                AI Scan — Top 3 Zones
+              </div>
+              {scanReport.top_sites.map((site) => (
+                <div
+                  key={site.rank}
+                  className="rounded-lg p-3 border border-lunar-border/60 bg-white/[0.02] space-y-1"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[10px] font-mono text-slate-400 uppercase tracking-wider">
+                      #{site.rank}
+                    </span>
+                    <span
+                      className="text-xs font-mono font-semibold tabular-nums"
+                      style={{ color: site.rank === 1 ? "#ffd700" : site.rank === 2 ? "#c0c0c0" : "#cd7f32" }}
+                    >
+                      {site.overall_score.toFixed(0)} / 100
+                    </span>
+                  </div>
+                  <div className="text-xs font-semibold text-white font-display truncate">{site.site_id}</div>
+                  <div className="text-[10px] font-mono text-slate-500 tabular-nums">
+                    {site.lat.toFixed(2)}°S · {site.lon.toFixed(2)}°E
+                  </div>
+                  <div className="text-[10px] font-prose text-slate-400 leading-tight">{site.key_advantage}</div>
+                </div>
+              ))}
+              {scanReport.mission_summary && (
+                <div className="text-[10px] font-prose text-slate-500 leading-relaxed px-1">
+                  {scanReport.mission_summary}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Command input */}
           <div>

@@ -172,12 +172,16 @@ async def council_stream(site_id: str = Query(...)):
 @app.post("/api/scan-zones")
 async def scan_zones():
     """
-    Run 48-point NumPy candidate grid scan then analyse with gemini-2.5-flash.
-    Tier 2: thinking_budget=4096.  Expected latency: 2–5 s.
+    Run 48-point NumPy candidate grid scan then analyse with the Scout AI.
+    Tier 2: thinking_budget=8192.  Expected latency: 15–60 s on Vertex AI.
     Returns top-3 ranked landing zones with trade-off rationale.
     """
-    report = await run_scout_scan(_genai_client)
-    return report.model_dump()
+    try:
+        report = await run_scout_scan(_genai_client)
+        return report.model_dump()
+    except Exception as e:
+        log.error("scan_zones failed: %s", e, exc_info=True)
+        raise HTTPException(500, f"Scout scan failed: {e}")
 
 
 # ── Serve React frontend ──────────────────────────────────────────────────────
