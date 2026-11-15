@@ -44,8 +44,9 @@ export default function TimelineScrubber() {
           {isPlaying ? "⏸" : "▶"}
         </button>
 
-        {/* Speed selector */}
-        <div className="flex gap-1 shrink-0">
+        {/* Speed selector — time simulation speed, not zoom */}
+        <div className="flex items-center gap-1.5 shrink-0">
+          <span className="text-[9px] font-mono text-slate-600 uppercase tracking-wider">Time sim</span>
           {speeds.map((s) => (
             <button
               key={s}
@@ -55,7 +56,7 @@ export default function TimelineScrubber() {
                             ? "border-lunar-accent bg-lunar-accent/20 text-lunar-accent"
                             : "border-lunar-border text-slate-500 hover:text-slate-300"}`}
             >
-              {s}x
+              {s === 1 ? "real" : `${s}x`}
             </button>
           ))}
         </div>
@@ -89,6 +90,11 @@ export default function TimelineScrubber() {
             <span>15 Nov 2026</span>
             <span>15 Dec 2026</span>
           </div>
+        </div>
+
+        {/* Zoom hint */}
+        <div className="shrink-0 text-[9px] font-mono text-slate-700 hidden lg:block">
+          scroll to zoom · drag to rotate
         </div>
 
         {/* Sightline status indicators */}

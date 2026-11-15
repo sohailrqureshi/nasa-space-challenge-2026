@@ -16,6 +16,7 @@ export function useCommandAgent() {
 
   const sendCommand = useCallback(async (query: string): Promise<void> => {
     store.setCommandLoading(true);
+    store.setLastQuery(query);
     try {
       const res = await fetch("/api/command", {
         method: "POST",

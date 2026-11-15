@@ -199,7 +199,7 @@ function SiteSelector() {
 export default function MissionControlHUD() {
   const {
     selectedSite, terrainFallback, commandInput, commandLoading,
-    setCommandInput, isScanning, lastCommand, scanError, scanReport, setScanFlyTarget,
+    setCommandInput, isScanning, lastCommand, lastQuery, scanError, scanReport, setScanFlyTarget,
   } = useMissionStore();
 
   const { sendCommand } = useCommandAgent();
@@ -232,12 +232,10 @@ export default function MissionControlHUD() {
             )}
           </div>
 
-          {/* Centre readout: command response → selected site → idle hint */}
+          {/* Centre readout: loading → selected site coords → idle hint */}
           <div className="flex-1 text-center text-xs font-mono text-slate-400 tabular-nums truncate px-2">
             {commandLoading ? (
               <span className="text-lunar-accent animate-pulse">Parsing command…</span>
-            ) : lastCommand?.response_text ? (
-              <span className="text-slate-200 font-prose">{lastCommand.response_text}</span>
             ) : selectedSite ? (
               <span>
                 <span className="text-slate-200 font-prose font-medium">{selectedSite.name}</span>
@@ -247,7 +245,7 @@ export default function MissionControlHUD() {
                 {selectedSite.elev_m.toFixed(0)} m
               </span>
             ) : (
-              <span className="text-slate-500">Select a landing site or type a command below</span>
+              <span className="text-slate-500">Select a landing site or use the command bar →</span>
             )}
           </div>
 
@@ -382,6 +380,30 @@ export default function MissionControlHUD() {
               </button>
             </div>
           </div>
+
+          {/* Last command Q&A */}
+          {lastQuery && lastCommand && (
+            <div className="rounded-lg border border-lunar-border/40 bg-white/[0.02] overflow-hidden">
+              <div className="px-3 py-2 border-b border-lunar-border/30">
+                <div className="text-[9px] font-mono text-slate-600 uppercase tracking-widest mb-0.5">You asked</div>
+                <div className="text-[11px] font-prose text-slate-300 leading-tight">{lastQuery}</div>
+              </div>
+              <div className="px-3 py-2">
+                <div className="text-[9px] font-mono text-lunar-accent/70 uppercase tracking-widest mb-0.5">Response</div>
+                <div className="text-[11px] font-prose text-slate-200 leading-relaxed">{lastCommand.response_text}</div>
+              </div>
+            </div>
+          )}
+          {commandLoading && (
+            <div className="rounded-lg border border-lunar-border/40 bg-white/[0.02] px-3 py-2">
+              <div className="text-[9px] font-mono text-slate-600 uppercase tracking-widest mb-0.5">You asked</div>
+              <div className="text-[11px] font-prose text-slate-300 leading-tight">{lastQuery}</div>
+              <div className="mt-2 flex items-center gap-2 text-[11px] text-lunar-accent font-mono">
+                <span className="w-2 h-2 rounded-full bg-lunar-accent animate-pulse" />
+                Parsing…
+              </div>
+            </div>
+          )}
 
           {/* Site selector */}
           <SiteSelector />

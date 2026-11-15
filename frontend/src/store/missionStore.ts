@@ -30,6 +30,7 @@ interface MissionState {
   councilMessages: CouncilMessage[];
   councilLoading: boolean;
   lastCommand: ViewerCommand | null;
+  lastQuery: string | null;
 
   // UI state
   overlayDismissed: boolean;
@@ -53,6 +54,7 @@ interface MissionState {
   clearCouncil: () => void;
   setCouncilLoading: (v: boolean) => void;
   setLastCommand: (cmd: ViewerCommand | null) => void;
+  setLastQuery: (q: string | null) => void;
   dismissOverlay: () => void;
   setDrawerOpen: (v: boolean) => void;
   setCommandInput: (v: string) => void;
@@ -76,6 +78,7 @@ export const useMissionStore = create<MissionState>((set, get) => ({
   councilMessages: [],
   councilLoading: false,
   lastCommand: null,
+  lastQuery: null,
 
   overlayDismissed: false,
   drawerOpen: true,
@@ -120,6 +123,7 @@ export const useMissionStore = create<MissionState>((set, get) => ({
   clearCouncil: () => set({ councilMessages: [] }),
   setCouncilLoading: (v) => set({ councilLoading: v }),
   setLastCommand: (cmd) => set({ lastCommand: cmd }),
+  setLastQuery: (q) => set({ lastQuery: q }),
 
   dismissOverlay: () => set({ overlayDismissed: true }),
   setDrawerOpen: (v) => set({ drawerOpen: v }),
