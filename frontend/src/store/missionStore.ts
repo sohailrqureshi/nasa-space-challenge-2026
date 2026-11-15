@@ -18,6 +18,7 @@ interface MissionState {
   scanReport: ScoutReport | null;
   isScanning: boolean;
   scanError: string | null;
+  scanFlyTarget: { lat: number; lon: number } | null;
   sightlines: SightlineStatus | null;
 
   // Timeline
@@ -43,6 +44,7 @@ interface MissionState {
   setScanReport: (report: ScoutReport | null) => void;
   setIsScanning: (v: boolean) => void;
   setScanError: (err: string | null) => void;
+  setScanFlyTarget: (target: { lat: number; lon: number } | null) => void;
   setSightlines: (s: SightlineStatus | null) => void;
   setMissionTime: (t: Date) => void;
   togglePlayback: () => void;
@@ -64,6 +66,7 @@ export const useMissionStore = create<MissionState>((set, get) => ({
   scanReport: null,
   isScanning: false,
   scanError: null,
+  scanFlyTarget: null,
   sightlines: null,
 
   missionTime: MISSION_START,
@@ -85,6 +88,7 @@ export const useMissionStore = create<MissionState>((set, get) => ({
   setScanReport: (report) => set({ scanReport: report }),
   setIsScanning: (v) => set({ isScanning: v }),
   setScanError: (err) => set({ scanError: err }),
+  setScanFlyTarget: (target) => set({ scanFlyTarget: target }),
   setSightlines: (s) => set({ sightlines: s }),
 
   setMissionTime: (t) => {

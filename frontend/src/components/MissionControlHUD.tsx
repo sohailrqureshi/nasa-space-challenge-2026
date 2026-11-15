@@ -199,7 +199,7 @@ function SiteSelector() {
 export default function MissionControlHUD() {
   const {
     selectedSite, terrainFallback, commandInput, commandLoading,
-    setCommandInput, isScanning, lastCommand, scanError, scanReport,
+    setCommandInput, isScanning, lastCommand, scanError, scanReport, setScanFlyTarget,
   } = useMissionStore();
 
   const { sendCommand } = useCommandAgent();
@@ -317,29 +317,36 @@ export default function MissionControlHUD() {
               <div className="text-[10px] font-mono text-slate-500 uppercase tracking-widest">
                 AI Scan — Top 3 Zones
               </div>
-              {scanReport.top_sites.map((site) => (
-                <div
-                  key={site.rank}
-                  className="rounded-lg p-3 border border-lunar-border/60 bg-white/[0.02] space-y-1"
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-[10px] font-mono text-slate-400 uppercase tracking-wider">
-                      #{site.rank}
-                    </span>
-                    <span
-                      className="text-xs font-mono font-semibold tabular-nums"
-                      style={{ color: site.rank === 1 ? "#ffd700" : site.rank === 2 ? "#c0c0c0" : "#cd7f32" }}
-                    >
-                      {site.overall_score.toFixed(0)} / 100
-                    </span>
-                  </div>
-                  <div className="text-xs font-semibold text-white font-display truncate">{site.site_id}</div>
-                  <div className="text-[10px] font-mono text-slate-500 tabular-nums">
-                    {site.lat.toFixed(2)}°S · {site.lon.toFixed(2)}°E
-                  </div>
-                  <div className="text-[10px] font-prose text-slate-400 leading-tight">{site.key_advantage}</div>
-                </div>
-              ))}
+              {scanReport.top_sites.map((site) => {
+                const rankColor = site.rank === 1 ? "#ffd700" : site.rank === 2 ? "#c0c0c0" : "#cd7f32";
+                return (
+                  <button
+                    key={site.rank}
+                    onClick={() => setScanFlyTarget({ lat: site.lat, lon: site.lon })}
+                    className="w-full text-left rounded-lg p-3 border space-y-1 transition-all"
+                    style={{
+                      borderColor: `${rankColor}30`,
+                      background: `${rankColor}08`,
+                    }}
+                    onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = `${rankColor}18`; }}
+                    onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = `${rankColor}08`; }}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[10px] font-mono uppercase tracking-wider" style={{ color: rankColor }}>
+                        #{site.rank} · fly to →
+                      </span>
+                      <span className="text-xs font-mono font-semibold tabular-nums" style={{ color: rankColor }}>
+                        {site.overall_score.toFixed(0)} / 100
+                      </span>
+                    </div>
+                    <div className="text-xs font-semibold text-white font-display truncate">{site.site_id}</div>
+                    <div className="text-[10px] font-mono text-slate-500 tabular-nums">
+                      {site.lat.toFixed(2)}°S · {site.lon.toFixed(2)}°E
+                    </div>
+                    <div className="text-[10px] font-prose text-slate-400 leading-tight">{site.key_advantage}</div>
+                  </button>
+                );
+              })}
               {scanReport.mission_summary && (
                 <div className="text-[10px] font-prose text-slate-500 leading-relaxed px-1">
                   {scanReport.mission_summary}

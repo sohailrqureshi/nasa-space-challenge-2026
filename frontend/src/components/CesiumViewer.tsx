@@ -71,9 +71,11 @@ export default function CesiumViewer() {
   const radarEntity    = useRef<Cesium.Entity | null>(null);
   const radarRafRef    = useRef<number | null>(null);
   const radarAngleRef  = useRef<number>(0);
+  const scanPinEntities = useRef<Cesium.Entity[]>([]);
 
   const {
-    sites, selectedSite, missionTime, isScanning, setTerrainFallback, setSightlines,
+    sites, selectedSite, missionTime, isScanning, setTerrainFallback, setSightlines, scanReport,
+    scanFlyTarget, setScanFlyTarget,
   } = useMissionStore();
 
   // ── Viewer initialisation ──────────────────────────────────────────────────
@@ -460,6 +462,75 @@ export default function CesiumViewer() {
       radarEntity.current = null;
     };
   }, [isScanning]);
+
+  // ── Drop AI scan result pins (gold / silver / bronze) ─────────────────────
+  useEffect(() => {
+    const viewer = viewerRef.current;
+    if (!viewer) return;
+
+    // Clear any previous scan pins
+    scanPinEntities.current.forEach((e) => viewer.entities.remove(e));
+    scanPinEntities.current = [];
+
+    if (!scanReport) return;
+
+    const rankColors = [
+      Cesium.Color.fromCssColorString("#FFD700"), // gold
+      Cesium.Color.fromCssColorString("#C0C0C0"), // silver
+      Cesium.Color.fromCssColorString("#CD7F32"), // bronze
+    ];
+
+    scanReport.top_sites.forEach((site) => {
+      const color = rankColors[(site.rank - 1) % 3];
+
+      const entity = viewer.entities.add({
+        position: latLonToCartesian(site.lat, site.lon, 3000),
+        billboard: {
+          image: createPinCanvas(color),
+          verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+          heightReference: Cesium.HeightReference.RELATIVE_TO_GROUND,
+          scale: 1.4,
+          disableDepthTestDistance: 1e9,
+        },
+        label: {
+          text: `#${site.rank} AI · ${site.overall_score.toFixed(0)}/100\n${site.site_id}`,
+          font: "12px JetBrains Mono, monospace",
+          fillColor: Cesium.Color.WHITE,
+          outlineColor: Cesium.Color.BLACK,
+          outlineWidth: 2,
+          style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+          verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+          pixelOffset: new Cesium.Cartesian2(0, -56),
+          heightReference: Cesium.HeightReference.RELATIVE_TO_GROUND,
+          disableDepthTestDistance: 1e9,
+          show: true,
+        },
+      });
+      scanPinEntities.current.push(entity);
+    });
+
+    // Auto-fly to the #1 recommendation so the user immediately sees the pins
+    const top = scanReport.top_sites.find((s) => s.rank === 1);
+    if (top) {
+      viewer.camera.flyTo({
+        destination: Cesium.Cartesian3.fromDegrees(top.lon, top.lat, 150_000),
+        orientation: { heading: 0, pitch: Cesium.Math.toRadians(-55), roll: 0 },
+        duration: 2.5,
+      });
+    }
+  }, [scanReport]);
+
+  // ── Fly to scan result when user clicks a sidebar card ────────────────────
+  useEffect(() => {
+    const viewer = viewerRef.current;
+    if (!viewer || !scanFlyTarget) return;
+    viewer.camera.flyTo({
+      destination: Cesium.Cartesian3.fromDegrees(scanFlyTarget.lon, scanFlyTarget.lat, 100_000),
+      orientation: { heading: 0, pitch: Cesium.Math.toRadians(-55), roll: 0 },
+      duration: 2.0,
+    });
+    setScanFlyTarget(null);
+  }, [scanFlyTarget, setScanFlyTarget]);
 
   return (
     <div
